@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27703.2035
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Apex.DataStreams", "src\Apex.DataStreams\Apex.DataStreams.csproj", "{B50F1092-E40F-49EF-8DF3-5D249BE0F103}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Apex.DataStreams.Tests", "src\Apex.DataStreams.Tests\Apex.DataStreams.Tests.csproj", "{B8E4D6C7-564A-4EE4-A481-DF595E0E8514}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B50F1092-E40F-49EF-8DF3-5D249BE0F103}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B50F1092-E40F-49EF-8DF3-5D249BE0F103}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B50F1092-E40F-49EF-8DF3-5D249BE0F103}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B50F1092-E40F-49EF-8DF3-5D249BE0F103}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B8E4D6C7-564A-4EE4-A481-DF595E0E8514}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B8E4D6C7-564A-4EE4-A481-DF595E0E8514}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B8E4D6C7-564A-4EE4-A481-DF595E0E8514}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B8E4D6C7-564A-4EE4-A481-DF595E0E8514}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {74D76948-9E1C-479C-921F-2F822B557F71}
+	EndGlobalSection
+EndGlobal
