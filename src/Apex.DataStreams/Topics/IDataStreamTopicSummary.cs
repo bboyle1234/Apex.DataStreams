@@ -4,6 +4,12 @@ using System.Threading.Tasks;
 
 namespace Apex.DataStreams.Topics {
 
+    /// <summary>
+    /// Classes inheriting this interface are used to generate "Topic Summary" messages that
+    /// are used to bring newly-connected clients up to date with the latest data state for the topic.
+    /// After receiving the summary message, clients will be able to receive live messages from the topic
+    /// and will be synchronized with the state of the topic's data.
+    /// </summary>
     public interface IDataStreamTopicSummary : IDisposable {
 
         /// <summary>

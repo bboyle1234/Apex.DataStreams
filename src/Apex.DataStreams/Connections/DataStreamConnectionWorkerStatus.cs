@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 namespace Apex.DataStreams.Connections {
 
+    [Serializable]
     public class DataStreamConnectionWorkerStatus {
 
         public string EndPoint;

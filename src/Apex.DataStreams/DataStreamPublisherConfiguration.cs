@@ -12,6 +12,9 @@ using Apex.DataStreams.Definitions;
 
 namespace Apex.DataStreams {
 
+    /// <summary>
+    /// Contains everything a publisher needs to begin publishing a DataStream.
+    /// </summary>
     public class DataStreamPublisherConfiguration {
 
         /// <summary>

@@ -32,7 +32,7 @@ namespace Apex.DataStreams {
 
         public void Start() {
             if (Interlocked.CompareExchange(ref _started, 1, 0) == 1) throw new InvalidOperationException("Cannot be started more than once.");
-            ConnectionWorkers.ForEach(c => c.Start());
+            ConnectionWorkers.ForEach(w => w.Start());
         }
 
         public async Task<DataStreamClientStatus> GetStatusAsync() {

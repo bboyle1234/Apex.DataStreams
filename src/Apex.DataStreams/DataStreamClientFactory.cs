@@ -20,6 +20,6 @@ namespace Apex.DataStreams {
             => new DataStreamClient(ServiceProvider, contexts);
 
         public IDataStreamClient Create(params DataStreamClientContext[] contexts)
-            => Create(contexts);
+            => new DataStreamClient(ServiceProvider, contexts);
     }
 }

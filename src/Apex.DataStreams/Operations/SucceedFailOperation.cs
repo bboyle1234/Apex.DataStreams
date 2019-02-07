@@ -5,11 +5,18 @@ using Apex.TimeStamps;
 
 namespace Apex.DataStreams.Operations {
 
+    /// <summary>
+    /// Use this class to represent an operation that you will manually complete by calling the 
+    /// <see cref="Succeed"/> or <see cref="Fail(Exception)"/> methods.
+    /// </summary>
     public class SucceedFailOperation : IOperation {
 
-        public TimeStamp EnqueuedAt { get; } = TimeStamp.Now;
         readonly TaskCompletionSource<object> TCS = new TaskCompletionSource<object>();
 
+        /// <inheritdoc />
+        public TimeStamp EnqueuedAt { get; } = TimeStamp.Now;
+
+        /// <inheritdoc />
         public Task Task => TCS.Task;
 
         public SucceedFailOperation() {

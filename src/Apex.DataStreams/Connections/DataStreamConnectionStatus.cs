@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 
 namespace Apex.DataStreams.Connections {
 
+    [Serializable]
     public class DataStreamConnectionStatus {
 
         public TimeStamp ConnectedAt;

@@ -10,6 +10,9 @@ using System.Threading.Tasks;
 
 namespace Apex.DataStreams {
 
+    /// <summary>
+    /// Contains everything needed for a data stream client to know how to operate.
+    /// </summary>
     public class DataStreamClientContext {
 
         /// <summary>
