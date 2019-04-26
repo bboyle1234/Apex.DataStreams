@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.28803.202
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".sln", ".sln", "{1151D584-5F5D-4460-98FB-2BBC3692571E}"
+	ProjectSection(SolutionItems) = preProject
+		version.json = version.json
+	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Apex.DataStreams", "Apex.DataStreams\Apex.DataStreams.csproj", "{DCB99F47-30CA-47E8-A3A7-C542266E2B5D}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Apex.DataStreams.Tests", "Apex.DataStreams.Tests\Apex.DataStreams.Tests.csproj", "{9B99AF9E-D034-45D1-BE40-062AAF3322DD}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DCB99F47-30CA-47E8-A3A7-C542266E2B5D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DCB99F47-30CA-47E8-A3A7-C542266E2B5D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DCB99F47-30CA-47E8-A3A7-C542266E2B5D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DCB99F47-30CA-47E8-A3A7-C542266E2B5D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9B99AF9E-D034-45D1-BE40-062AAF3322DD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9B99AF9E-D034-45D1-BE40-062AAF3322DD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9B99AF9E-D034-45D1-BE40-062AAF3322DD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9B99AF9E-D034-45D1-BE40-062AAF3322DD}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F79D2DF8-B9BD-490A-ABF4-A70F9653E655}
+	EndGlobalSection
+EndGlobal
