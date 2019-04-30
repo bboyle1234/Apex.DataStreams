@@ -16,6 +16,6 @@ namespace Apex.DataStreams.Topics {
         /// Called when a new client has connected to the topic, and the topic needs to send a summary message that brings the new client "up to date".
         /// Caller topic guarantees not to interleave concurrent calls to any method in this class.
         /// </summary>
-        Task<MessageEnvelope> GetTopicSummary();
+        Task<object> GetTopicSummary();
     }
 }

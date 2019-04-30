@@ -103,7 +103,6 @@ namespace Apex.DataStreams.Tests {
 
         class MyMessageClass {
             public string MessageString;
-            public int MessageInt;
         }
     }
 }

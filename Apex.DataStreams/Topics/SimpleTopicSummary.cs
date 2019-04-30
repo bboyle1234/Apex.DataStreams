@@ -14,16 +14,16 @@ namespace Apex.DataStreams.Topics {
     /// </summary>
     public sealed class SimpleTopicSummary : IDataStreamTopicSummary, IDisposable {
 
-        MessageEnvelope _lastMessage;
+        object _lastMessage;
 
         /// <inheritdoc/>
         public Task OnMessage(MessageEnvelope envelope) {
-            _lastMessage = envelope;
+            _lastMessage = envelope.Message;
             return Task.CompletedTask;
         }
 
         /// <inheritdoc/>
-        public Task<MessageEnvelope> GetTopicSummary()
+        public Task<object> GetTopicSummary()
             => Task.FromResult(_lastMessage);
 
 

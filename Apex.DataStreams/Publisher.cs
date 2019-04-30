@@ -237,7 +237,9 @@ namespace Apex.DataStreams {
             var status = new PublisherStatus();
             var connectionStatusTasks = Clients.Select(c => c.GetStatusAsync());
             await Task.WhenAll(connectionStatusTasks).ConfigureAwait(false);
+#pragma warning disable AsyncFixer02 // Long running or blocking operations under an async method
             status.Connections = connectionStatusTasks.Select(t => t.Result).ToList();
+#pragma warning restore AsyncFixer02 // Long running or blocking operations under an async method
             status.RecentDisconnections = RecentDisconnections.GetRecentEvents().ToList();
             return status;
         }
@@ -281,11 +283,12 @@ namespace Apex.DataStreams {
                     Clients.AddRange(newClients);
 
                     /// Then we automatically send the topic summary message to all new clients.
-                    var topicSummary = await TopicSummaryManager.GetTopicSummary().ConfigureAwait(false);
-                    if (null != topicSummary) {
+                    var topicSummaryMessage = await TopicSummaryManager.GetTopicSummary().ConfigureAwait(false);
+                    if (null != topicSummaryMessage) {
+                        var envelope = Encoder.Encode(Definition, topicSummaryMessage);
                         /// Enqueues the topic summary to all the new clients, and removes clients from the main 
                         /// client list if the topic summary fails to be enqueued.
-                        await ActuallyEnqueueAsync(newClients, topicSummary).ConfigureAwait(false);
+                        await ActuallyEnqueueAsync(newClients, envelope).ConfigureAwait(false);
                     }
                 }
             }

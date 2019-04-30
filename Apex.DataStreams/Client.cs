@@ -38,9 +38,11 @@ namespace Apex.DataStreams {
         public async Task<ClientStatus> GetStatusAsync() {
             var tasks = ConnectionWorkers.Select(c => c.GetStatusAsync());
             await Task.WhenAll(tasks).ConfigureAwait(false);
+#pragma warning disable AsyncFixer02 // Long running or blocking operations under an async method
             return new ClientStatus {
                 Connections = tasks.Select(t => t.Result).ToList(),
             };
+#pragma warning restore AsyncFixer02 // Long running or blocking operations under an async method
         }
     }
 }
