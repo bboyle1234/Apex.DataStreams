@@ -15,11 +15,14 @@ using Apex.DataStreams.Topics;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using Apex.ValueCompression;
+using System.IO;
+using System.Reflection;
 
 namespace Apex.DataStreams.Tests {
 
     [TestClass]
-    public class Connectivity {
+    public class CompressionEncodingTests {
 
         static IServiceProvider ServiceProvider;
         static DataStreamDefinition DataStreamDefinition;
@@ -28,8 +31,8 @@ namespace Apex.DataStreams.Tests {
         public static void ClassInitialize(TestContext context) {
             ServiceProvider = new ServiceCollection()
                 .AddDataStreams()
-                .UseDataStreamsEncoder<BsonEncoder>()
-                .UseDataStreamsSerializer<DefaultSerializer>()
+                .UseDataStreamsEncoder<CompressionEncoder>()
+                .UseCompressorsIn(Assembly.GetExecutingAssembly())
                 .AddLogging(builder => {
                     builder.AddDebug();
                     builder.AddConsole(options => {
@@ -105,6 +108,21 @@ namespace Apex.DataStreams.Tests {
 
         class MyMessageClass {
             public string MessageString;
+        }
+
+        class MyMessageClassEncoder : ICompressor<MyMessageClass>, IDecompressor<MyMessageClass> {
+
+            public void Compress(Stream stream, MyMessageClass value)
+                => stream.WriteCompressedString(value.MessageString);
+
+            public void Compress(Stream stream, object value)
+                => Compress(stream, (MyMessageClass)value);
+
+            public MyMessageClass Decompress(Stream stream)
+                => new MyMessageClass { MessageString = stream.ReadCompressedString() };
+
+            object IDecompressor.Decompress(Stream stream)
+                => this.Decompress(stream);
         }
     }
 }

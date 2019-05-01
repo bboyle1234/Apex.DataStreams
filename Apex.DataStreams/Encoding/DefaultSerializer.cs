@@ -7,7 +7,7 @@ using Newtonsoft.Json;
 
 namespace Apex.DataStreams.Encoding {
 
-    internal sealed class DefaultSerializer : ISerializer {
+    public sealed class DefaultSerializer : ISerializer {
 
         JsonSerializer JsonSerializer = new JsonSerializer();
 

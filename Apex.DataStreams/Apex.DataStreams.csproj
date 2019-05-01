@@ -7,16 +7,17 @@
 
   <ItemGroup>
     <PackageReference Include="Apex.LoggingUtils" Version="0.1.15" />
-    <PackageReference Include="Apex.ServiceUtilities" Version="0.1.7-gbe50d40bda" />
-    <PackageReference Include="Apex.TaskUtilities" Version="1.0.0" />
+    <PackageReference Include="Apex.ServiceUtilities" Version="0.1.9" />
+    <PackageReference Include="Apex.TaskUtilities" Version="1.1.1" />
     <PackageReference Include="Apex.TimeStamps" Version="3.0.2" />
+    <PackageReference Include="Apex.ValueCompression" Version="0.1.6" />
     <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="2.1.0" />
     <PackageReference Include="Nerdbank.GitVersioning" Version="2.3.138">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Newtonsoft.Json.Bson" Version="1.0.2" />
-    <PackageReference Include="Nito.AsyncEx" Version="5.0.0-pre-06" />
+    <PackageReference Include="Nito.AsyncEx" Version="5.0.0" />
     <PackageReference Include="System.Net.Sockets" Version="4.3.0" />
   </ItemGroup>
 
