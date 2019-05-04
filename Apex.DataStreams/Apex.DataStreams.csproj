@@ -6,11 +6,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Apex.KeyedServices" Version="0.1.2" />
     <PackageReference Include="Apex.LoggingUtils" Version="0.1.15" />
     <PackageReference Include="Apex.ServiceUtilities" Version="0.1.9" />
     <PackageReference Include="Apex.TaskUtilities" Version="1.1.1" />
     <PackageReference Include="Apex.TimeStamps" Version="3.0.2" />
-    <PackageReference Include="Apex.ValueCompression" Version="0.1.6" />
+    <PackageReference Include="Apex.ValueCompression" Version="0.1.17" />
     <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="2.1.0" />
     <PackageReference Include="Nerdbank.GitVersioning" Version="2.3.138">
       <PrivateAssets>all</PrivateAssets>

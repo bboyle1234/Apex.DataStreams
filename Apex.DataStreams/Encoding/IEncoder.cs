@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace Apex.DataStreams.Encoding {
 
-    public interface IEncoder {
+    internal interface IEncoder {
 
         MessageEnvelope Encode(DataStreamTopicDefinition topicDefinition, object message);
         Task<MessageEnvelope> ReadMessageFromSocketAsync(DataStreamDefinition dataStreamDefinition, Socket socket);

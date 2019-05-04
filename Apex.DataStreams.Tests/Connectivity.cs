@@ -15,6 +15,10 @@ using Apex.DataStreams.Topics;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using Apex.ValueCompression.Compressors;
+using System.IO;
+using Apex.ValueCompression;
+using System.Reflection;
 
 namespace Apex.DataStreams.Tests {
 
@@ -28,8 +32,7 @@ namespace Apex.DataStreams.Tests {
         public static void ClassInitialize(TestContext context) {
             ServiceProvider = new ServiceCollection()
                 .AddDataStreams()
-                .UseDataStreamsEncoder<BsonEncoder>()
-                .UseDataStreamsSerializer<DefaultSerializer>()
+                .AddCompressorsFrom(Assembly.GetExecutingAssembly())
                 .AddLogging(builder => {
                     builder.AddDebug();
                     builder.AddConsole(options => {
@@ -106,5 +109,15 @@ namespace Apex.DataStreams.Tests {
         class MyMessageClass {
             public string MessageString;
         }
+
+        class MyMessageClassEncoder : CompressorBase<MyMessageClass> {
+
+            public override void Compress(Stream stream, MyMessageClass value)
+                => stream.WriteCompressedString(value.MessageString);
+
+            public override MyMessageClass Decompress(Stream stream)
+                => new MyMessageClass { MessageString = stream.ReadCompressedString() };
+        }
+
     }
 }

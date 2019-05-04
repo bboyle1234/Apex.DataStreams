@@ -1,11 +1,10 @@
 ﻿using Apex.ValueCompression;
+using Apex.ValueCompression.Compressors;
 using System.IO;
 
 namespace Apex.DataStreams.AdminMessages {
-    internal sealed class HeartBeatCompressor : ICompressor<HeartBeat>, IDecompressor<HeartBeat> {
-        public void Compress(Stream stream, HeartBeat value) { }
-        public void Compress(Stream stream, object value) { }
-        public HeartBeat Decompress(Stream stream) => new HeartBeat();
-        object IDecompressor.Decompress(Stream stream) => this.Decompress(stream);
+    internal sealed class HeartBeatCompressor : CompressorBase<HeartBeat> {
+        public override void Compress(Stream stream, HeartBeat value) { }
+        public override HeartBeat Decompress(Stream stream) => new HeartBeat();
     }
 }

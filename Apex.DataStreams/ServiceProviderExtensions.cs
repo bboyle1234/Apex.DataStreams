@@ -1,12 +1,12 @@
 ﻿using Apex.DataStreams.AdminMessages;
 using Apex.DataStreams.Encoding;
 using Apex.ValueCompression;
+using Apex.ValueCompression.Compressors;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Apex.DataStreams {
@@ -22,51 +22,19 @@ namespace Apex.DataStreams {
         public static IServiceCollection AddDataStreams(this IServiceCollection services) {
             if (services.HasDataStreams()) return services;
             services.AddSingleton<DataStreamMarker>();
+            services.AddSingleton<IEncoder, Encoder>();
+            services.AddSingleton<ICompressorFactory, ServiceProviderCompressorFactory>();
             services.AddSingleton<ICompressor<HeartBeat>, HeartBeatCompressor>();
             services.AddSingleton<IDecompressor<HeartBeat>, HeartBeatCompressor>();
             return services;
         }
 
-        public static IServiceCollection UseDataStreamsSerializer<TSerializer>(this IServiceCollection services) where TSerializer : class, ISerializer {
-            if (!services.HasDataStreams()) throw new Exception($"You must '{nameof(AddDataStreams)}' before adding custom service implementations for DataStreams.");
-            services.AddSingleton<ISerializer, TSerializer>();
-            return services;
-        }
-
-        public static IServiceCollection UseDataStreamsSerializer(this IServiceCollection services, Func<IServiceProvider, ISerializer> factory) {
-            if (!services.HasDataStreams()) throw new Exception($"You must '{nameof(AddDataStreams)}' before adding custom service implementations for DataStreams.");
-            services.AddSingleton<ISerializer>(factory);
-            return services;
-        }
-
-        public static IServiceCollection UseDataStreamsEncoder<TEncoder>(this IServiceCollection services) where TEncoder : class, IEncoder {
-            if (!services.HasDataStreams()) throw new Exception($"You must '{nameof(AddDataStreams)}' before adding custom service implementations for DataStreams.");
-            services.AddSingleton<IEncoder, TEncoder>();
-            return services;
-        }
-
-        public static IServiceCollection UseDataStreamsEncoder(this IServiceCollection services, Func<IServiceProvider, IEncoder> factory) {
-            if (!services.HasDataStreams()) throw new Exception($"You must '{nameof(AddDataStreams)}' before adding custom service implementations for DataStreams.");
-            services.AddSingleton<IEncoder>(factory);
-            return services;
-        }
-
-        public static IServiceCollection UseCompressorsIn(this IServiceCollection services, Assembly assembly) {
-            foreach (var type in assembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract)) {
-
-                var compressorInterfaceType = type.GetInterfaces()
-                    .Where(i => i.IsConstructedGenericType)
-                    .Where(i => i.GetGenericTypeDefinition() == typeof(ICompressor<>))
-                    .FirstOrDefault();
-                if (null != compressorInterfaceType)
-                    services.AddSingleton(compressorInterfaceType, type);
-
-                var decompressorInterfaceType = type.GetInterfaces()
-                    .Where(i => i.IsConstructedGenericType)
-                    .Where(i => i.GetGenericTypeDefinition() == typeof(IDecompressor<>))
-                    .FirstOrDefault();
-                if (null != decompressorInterfaceType)
-                    services.AddSingleton(decompressorInterfaceType, type);
+        public static IServiceCollection AddCompressorsFrom(this IServiceCollection services, Assembly assembly) {
+            foreach (var x in assembly.GetCompressorTypeData()) {
+                services.AddSingleton(x.ServiceType, x.ImplementationType);
+            }
+            foreach (var x in assembly.GetDecompressorTypeData()) {
+                services.AddSingleton(x.ServiceType, x.ImplementationType);
             }
             return services;
         }
