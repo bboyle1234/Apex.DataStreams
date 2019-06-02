@@ -27,7 +27,7 @@ namespace Apex.DataStreams.Encoding {
             using (var ms = new MemoryStream(messageDefinition.MessageBufferSize)) {
                 ms.Write(new byte[] { topicDefinition.TopicCode, messageDefinition.MessageCode, 0, 0 }, 0, 4);
                 try {
-                    CompressorFactory.GetRequiredCompressor(messageType).Compress(ms, message);
+                    CompressorFactory.GetRequiredCompressor(messageType).Compress(ms.AsIWriteBytes(), message);
                 } catch (Exception x) {
                     throw new Exception($"Exception thrown while serializing topicCode '{topicDefinition.TopicCode}', messageTypeCode '{messageDefinition.MessageCode}', messageType '{messageDefinition.MessageType.FullName}'", x);
                 }
@@ -47,7 +47,7 @@ namespace Apex.DataStreams.Encoding {
             var messageBytes = await socket.ReadAllBytes(messageBodyLength).ConfigureAwait(false);
             using (var ms = new MemoryStream(messageBytes)) {
                 try {
-                    var message = CompressorFactory.GetRequiredDecompressor(messageDefinition.MessageType).Decompress(ms);
+                    var message = CompressorFactory.GetRequiredDecompressor(messageDefinition.MessageType).Decompress(ms.AsIReadBytes());
                     return new MessageEnvelope(header[0], header[1], messageDefinition.MessageType, messageBytes, message);
                 } catch (Exception x) {
                     throw new Exception($"Exception thrown while deserializing topicCode '{header[0]}', messageTypeCode '{header[1]}', messageType '{messageDefinition.MessageType.FullName}'", x);

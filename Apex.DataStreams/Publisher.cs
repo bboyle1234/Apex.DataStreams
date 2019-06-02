@@ -156,7 +156,7 @@ namespace Apex.DataStreams {
 
                     /// A side-effect of the Dispose method is that all clients will call OnClientDisconnected.
                     /// We check for disposal here inside the lock to make sure we get the logic right. 
-                    if (IsDisposed) return;
+                    if (IsDisposeStarted) return;
 
                     Log.LogInformation(x, $"Remote '{client.RemoteEndPoint}' disconnected.");
 
@@ -182,7 +182,7 @@ namespace Apex.DataStreams {
         /// <inheritdoc />
         public async Task<IDataStreamTopic> CreateTopicAsync(DataStreamTopicDefinition definition, IDataStreamTopicSummary topicManager) {
             using (await Lock.LockAsync().ConfigureAwait(false)) {
-                if (IsDisposed) throw new ObjectDisposedException(nameof(Publisher));
+                if (IsDisposeStarted) throw new ObjectDisposedException(nameof(Publisher));
                 var topic = new Topic(this, definition, Encoder, topicManager);
                 await topic.AddClientsAsync(Clients).ConfigureAwait(false);
                 Topics.Add(topic);
@@ -216,7 +216,7 @@ namespace Apex.DataStreams {
             if (Interlocked.CompareExchange(ref _errored, 1, 0) == 1) return;
 
             /// If we're being called by the Dispose method, there's no need to log the error or fire off the Dispose method.
-            if (!IsDisposed) {
+            if (!IsDisposeStarted) {
                 Log.LogError(x, $"Exception thrown.");
                 FireAndForget(Dispose);
             }

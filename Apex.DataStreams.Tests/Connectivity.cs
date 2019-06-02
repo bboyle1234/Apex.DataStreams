@@ -112,10 +112,10 @@ namespace Apex.DataStreams.Tests {
 
         class MyMessageClassEncoder : CompressorBase<MyMessageClass> {
 
-            public override void Compress(Stream stream, MyMessageClass value)
+            public override void Compress(IWriteBytes stream, MyMessageClass value)
                 => stream.WriteCompressedString(value.MessageString);
 
-            public override MyMessageClass Decompress(Stream stream)
+            public override MyMessageClass Decompress(IReadBytes stream)
                 => new MyMessageClass { MessageString = stream.ReadCompressedString() };
         }
 
