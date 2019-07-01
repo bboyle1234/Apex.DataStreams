@@ -8,7 +8,7 @@ namespace Apex.DataStreams.Operations {
     public class SucceedFailOperation : IOperation {
 
         public TimeStamp EnqueuedAt { get; } = TimeStamp.Now;
-        readonly TaskCompletionSource<object> TCS = new TaskCompletionSource<object>();
+        readonly TaskCompletionSource<object> TCS = new TaskCompletionSource<object>(TaskContinuationOptions.RunContinuationsAsynchronously);
 
         public Task Task => TCS.Task;
 
