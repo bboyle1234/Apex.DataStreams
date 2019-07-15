@@ -39,14 +39,14 @@ namespace Apex.DataStreams.Connections {
 
         readonly ILogger Log;
         readonly IEncoder Encoder;
-        readonly ClientContext Context;
+        readonly ClientContext ClientContext;
         readonly RecentEventCounter<DisconnectionEvent> RecentDisconnections;
 
         Connection _remote = null;
 
-        public ClientConnectionWorker(IServiceProvider serviceProvider, ClientContext context) {
-            Context = context;
-            Log = serviceProvider.GetRequiredService<ILoggerFactory>().CreateLogger($"{nameof(ClientConnectionWorker)}_{Context.PublisherEndPoint}");
+        public ClientConnectionWorker(IServiceProvider serviceProvider, ClientContext clientContext) {
+            ClientContext = clientContext;
+            Log = serviceProvider.GetRequiredService<ILoggerFactory>().CreateLogger($"{nameof(ClientConnectionWorker)}_{ClientContext.PublisherEndPoint}");
             Encoder = serviceProvider.GetRequiredService<IEncoder>();
             RecentDisconnections = new RecentEventCounter<DisconnectionEvent>(TimeSpan.FromMinutes(1));
         }
@@ -77,16 +77,16 @@ namespace Apex.DataStreams.Connections {
                     /// We go through the whole process of resolving the ip from scratch every time because, in the docker environment, 
                     /// the target container's ip can change at any time when it's re-instantiated.
                     await SetIPEndPoint().ConfigureAwait(false);
-                    /// Actually connect the socket
-                    await EstablishConnection().ConfigureAwait(false);
+                    /// Actually connect the socket. Sets the "socket" variable.
+                    await ConnectSocket().ConfigureAwait(false);
                     /// Then create and start the DataStreamConnection that will be handling the underlying data transfer protocol
                     var context = new ConnectionContext {
-                        Definition = Context.DataStreamDefinition,
+                        Definition = ClientContext.DataStreamDefinition,
                         Encoder = Encoder,
                         Socket = socket,
-                        ReceiveQueue = Context.ReceiveQueue,
+                        ReceiveQueue = ClientContext.ReceiveQueue,
                         DisconnectedCallback = OnDisconnected,
-                        MaxMessageSendTimeInSeconds = Context.MaxMessageSendTimeInSeconds,
+                        MaxMessageSendTimeInSeconds = ClientContext.MaxMessageSendTimeInSeconds,
                     };
                     _remote = new Connection(context);
                     _remote.Start();
@@ -97,7 +97,7 @@ namespace Apex.DataStreams.Connections {
                     /// Our work is done --- let's get outta the method!!
                     return;
                 } catch (Exception x) { // Happens when connection failed.
-                    Log.LogError(x, $"Unable to establish connection to '{Context.PublisherEndPoint}'.");
+                    Log.LogError(x, $"Unable to establish connection to '{ClientContext.PublisherEndPoint}'.");
                     AddDisconnectionEvent(x);
                     /// Cleans up partially-created objects.
                     try { _remote?.Dispose(); } catch { }
@@ -110,17 +110,17 @@ namespace Apex.DataStreams.Connections {
             /// Figures out the IP End Point from values supplied in the configuration, and throws exceptions with good explanations.
             async Task SetIPEndPoint() {
                 try {
-                    var parts = Context.PublisherEndPoint.Split(':');
+                    var parts = ClientContext.PublisherEndPoint.Split(':');
                     var ip = (await Dns.GetHostAddressesAsync(parts[0]).ConfigureAwait(false)).First(x => x.AddressFamily == AddressFamily.InterNetwork);
                     var port = int.Parse(parts[1], NumberStyles.Any, CultureInfo.InvariantCulture);
                     endPoint = new IPEndPoint(ip, port);
                 } catch (Exception x) {
-                    throw new Exception($"Error parsing IPEndpoint from value '{Context.PublisherEndPoint}'. Expected format is '[host|ip]:port'.", x);
+                    throw new Exception($"Error parsing IPEndpoint from value '{ClientContext.PublisherEndPoint}'. Expected format is '[host|ip]:port'.", x);
                 }
             }
 
             /// Responsible for handling connection logic and throwing exceptions with good explanations.
-            async Task EstablishConnection() {
+            async Task ConnectSocket() {
                 try {
                     socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                     socket.ReceiveBufferSize = ReceiveBufferSize;
@@ -134,7 +134,7 @@ namespace Apex.DataStreams.Connections {
 
             /// Handles disconnection. 
             async Task OnDisconnected(Connection r, Exception x) {
-                Log.LogError(x, $"Disconnected from '{Context.PublisherEndPoint}' @ '{endPoint}'.");
+                Log.LogError(x, $"Disconnected from '{ClientContext.PublisherEndPoint}' @ '{endPoint}'.");
                 AddDisconnectionEvent(x);
                 /// Dispose the remote and the socket.
                 /// It was coded to automatically dispose itself and the socket on disconnection, these lines of code are just "being polite", 
@@ -163,13 +163,13 @@ namespace Apex.DataStreams.Connections {
             RecentDisconnections.Increment(new DisconnectionEvent {
                 TimeStamp = TimeStamp.Now,
                 Exception = x,
-                RemoteEndPoint = Context.PublisherEndPoint,
+                RemoteEndPoint = ClientContext.PublisherEndPoint,
             });
         }
 
         public async Task<ConnectionWorkerStatus> GetStatusAsync() {
             var status = new ConnectionWorkerStatus();
-            status.EndPoint = Context.PublisherEndPoint;
+            status.EndPoint = ClientContext.PublisherEndPoint;
             status.RecentDisconnections = RecentDisconnections.GetRecentEvents().ToList();
             var current = _remote;
             if (null != current) {
