@@ -1,5 +1,6 @@
 ﻿using Apex.DataStreams.Encoding;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Apex.DataStreams.Topics {
@@ -15,7 +16,9 @@ namespace Apex.DataStreams.Topics {
         /// <summary>
         /// Called when a new client has connected to the topic, and the topic needs to send a summary message that brings the new client "up to date".
         /// Caller topic guarantees not to interleave concurrent calls to any method in this class.
+        /// You can return null to indicate no summary messages need to be sent. 
+        /// You can return an array that has null items if not all placeholders in the array have a message to be sent.
         /// </summary>
-        Task<object> GetTopicSummary();
+        Task<object[]> GetTopicSummary();
     }
 }

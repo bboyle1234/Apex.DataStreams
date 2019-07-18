@@ -17,7 +17,7 @@ namespace Apex.DataStreams.Topics {
         public Task OnMessage(MessageEnvelope envelope) => Task.CompletedTask;
 
         /// <inheritdoc/>
-        public Task<object> GetTopicSummary() => Task.FromResult<object>(null);
+        public Task<object[]> GetTopicSummary() => Task.FromResult<object[]>(null);
 
 
         public void Dispose() { }

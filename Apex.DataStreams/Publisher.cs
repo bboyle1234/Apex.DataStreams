@@ -283,12 +283,16 @@ namespace Apex.DataStreams {
                     Clients.AddRange(newClients);
 
                     /// Then we automatically send the topic summary message to all new clients.
-                    var topicSummaryMessage = await TopicSummaryManager.GetTopicSummary().ConfigureAwait(false);
-                    if (null != topicSummaryMessage) {
-                        var envelope = Encoder.Encode(Definition, topicSummaryMessage);
-                        /// Enqueues the topic summary to all the new clients, and removes clients from the main 
-                        /// client list if the topic summary fails to be enqueued.
-                        await ActuallyEnqueueAsync(newClients, envelope).ConfigureAwait(false);
+                    var topicSummaryMessages = await TopicSummaryManager.GetTopicSummary().ConfigureAwait(false);
+                    if (null != topicSummaryMessages) {
+                        foreach (var message in topicSummaryMessages) {
+                            if (null != message) {
+                                var envelope = Encoder.Encode(Definition, message);
+                                /// Enqueues the topic summary to all the new clients, and removes clients from the main 
+                                /// client list if the topic summary fails to be enqueued.
+                                await ActuallyEnqueueAsync(newClients, envelope).ConfigureAwait(false);
+                            }
+                        }
                     }
                 }
             }
