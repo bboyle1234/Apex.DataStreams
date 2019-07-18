@@ -48,7 +48,6 @@ namespace Apex.DataStreams.Connections {
         /// <summary>
         /// Creates the DataStreamConnection using the given definition, encoder, and socket. 
         /// </summary>
-        /// <param name="receiveQueue">Incoming messages enqueued here so calling objects can process them.</param>
         public Connection(ConnectionContext context) {
             Context = context;
             RemoteEndPoint = Context.Socket.RemoteEndPoint;
@@ -177,7 +176,7 @@ namespace Apex.DataStreams.Connections {
 
         /// <summary>
         /// Runs until we are disposed. Causes disposal if an exception occurs.
-        /// Reads messages out of the socket and places them in the <see cref="ReceiveQueue"/>.
+        /// Reads messages out of the socket and places them in the <see cref="ConnectionContext.ReceiveQueue"/>.
         /// </summary>
         async Task ReceiveWorker() {
             try {
