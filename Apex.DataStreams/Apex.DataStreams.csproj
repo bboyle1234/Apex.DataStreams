@@ -12,8 +12,8 @@
     <PackageReference Include="Apex.LoggingUtils" Version="0.1.15" />
     <PackageReference Include="Apex.ServiceUtilities" Version="0.1.17" />
     <PackageReference Include="Apex.TaskUtilities" Version="1.1.6" />
-    <PackageReference Include="Apex.TimeStamps" Version="4.0.15" />
-    <PackageReference Include="Apex.ValueCompression" Version="1.0.12" />
+    <PackageReference Include="Apex.TimeStamps" Version="4.0.20" />
+    <PackageReference Include="Apex.ValueCompression" Version="1.0.13" />
     <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="2.1.0" />
     <PackageReference Include="Nerdbank.GitVersioning" Version="2.3.167">
       <PrivateAssets>all</PrivateAssets>
