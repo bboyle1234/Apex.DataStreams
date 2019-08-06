@@ -31,7 +31,7 @@ namespace Apex.DataStreams.Connections {
     internal sealed class Connection : ServiceBase, IDisposable {
 
         static readonly TimeSpan HeartBeatSendInterval = TimeSpan.FromSeconds(1);
-        static readonly TimeSpan HeartBeatReceiveInterval = TimeSpan.FromSeconds(2);
+        static readonly TimeSpan HeartBeatReceiveInterval = TimeSpan.FromSeconds(30);
 
         readonly ConnectionContext Context;
         readonly AsyncProducerConsumerQueue<SendOperation> SendQueue;
