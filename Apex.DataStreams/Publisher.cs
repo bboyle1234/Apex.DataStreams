@@ -7,6 +7,7 @@ using Newtonsoft.Json;
 using Nito.AsyncEx;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -30,10 +31,11 @@ namespace Apex.DataStreams {
         readonly AsyncLock Mutex = new AsyncLock();
         readonly PublisherConfiguration Configuration;
         readonly List<Topic> Topics = new List<Topic>();
-        readonly List<Connection> Connections = new List<Connection>();
         readonly Func<Publisher, Exception, Task> ErrorCallback;
+        readonly RecentEventCounter<DisconnectionEvent> RecentDisconnections = new RecentEventCounter<DisconnectionEvent>(TimeSpan.FromMinutes(1));
 
         int _errored = 0;
+        ImmutableList<Connection> Connections = ImmutableList<Connection>.Empty;
 
         public Publisher(IServiceProvider services, PublisherConfiguration configuration, Func<Publisher, Exception, Task> errorCallback) {
             Services = services;
@@ -57,6 +59,14 @@ namespace Apex.DataStreams {
                 Log.LogCritical(x, "Exception thrown while starting.");
                 OnErrored(x);
             }
+        }
+
+        protected override void CustomDispose(bool disposing) {
+            try { Listener.Dispose(); } catch { }
+            foreach (var connection in Connections) {
+                connection.Dispose();
+            }
+            RecentDisconnections.Dispose();
         }
 
         /// <summary>
@@ -116,6 +126,7 @@ namespace Apex.DataStreams {
 
         async ValueTask AddConnection(Connection connection) {
             using (await Mutex.LockAsync().ConfigureAwait(false)) {
+                Connections = Connections.Add(connection);
                 foreach (var topic in Topics) {
                     await topic.AddConnection(connection).ConfigureAwait(false);
                 }
@@ -125,6 +136,7 @@ namespace Apex.DataStreams {
                     foreach (var topic in Topics) {
                         await topic.RemoveConnection(connection).ConfigureAwait(false);
                     }
+                    Connections = Connections.Remove(connection);
                 }
             }).Ignore();
         }
@@ -149,6 +161,15 @@ namespace Apex.DataStreams {
             foreach (var topic in Topics)
                 topic.Dispose();
             Topics.Clear();
+        }
+
+        public async Task<PublisherStatus> GetStatus() {
+            var status = new PublisherStatus();
+            status.Connections = new List<ConnectionStatus>();
+            foreach (var connection in Connections)
+                status.Connections.Add(await connection.GetStatusAsync().ConfigureAwait(false));
+            status.RecentDisconnections = RecentDisconnections.GetRecentEvents().ToList();
+            return status;
         }
 
 
