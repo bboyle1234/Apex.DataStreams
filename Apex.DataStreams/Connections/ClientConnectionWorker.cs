@@ -123,8 +123,8 @@ namespace Apex.DataStreams.Connections {
             async Task ConnectSocket() {
                 try {
                     socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                    socket.ReceiveBufferSize = ReceiveBufferSize;
-                    socket.NoDelay = true;
+                    //socket.ReceiveBufferSize = ReceiveBufferSize;
+                    //socket.NoDelay = true;
                     socket.LingerState = new LingerOption(false, 0);
                     await socket.ConnectAsync(endPoint).ConfigureAwait(false);
                 } catch (Exception x) {

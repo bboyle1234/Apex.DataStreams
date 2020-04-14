@@ -60,9 +60,9 @@ namespace Apex.DataStreams.Tests {
         [TestMethod]
         public async Task Test1() {
             var clientMessages = new AsyncProducerConsumerQueue<MessageEnvelope>();
-            var messageCounter = new Dictionary<string, int>();
-            var @event = new AsyncAutoResetEvent();
-            _ = Task.Run(ReceiveWorker);
+            //var messageCounter = new Dictionary<string, int>();
+            //var @event = new AsyncAutoResetEvent();
+            //_ = Task.Run(ReceiveWorker);
 
             var publisher = ServiceProvider.CreateIDataStreamPublisher(new PublisherConfiguration {
                 ListenPort = 6116,
@@ -76,15 +76,48 @@ namespace Apex.DataStreams.Tests {
                 ReceiveQueue = clientMessages,
             });
             client1.Start();
+            while(true) {
+                var status = await client1.GetStatusAsync().ConfigureAwait(false);
+                if (status.Connections.Count > 0) {
+                    if (status.Connections[0].CurrentConnection is object) {
+                        break;
+                    }
+                }
+            }
 
             var t1 = await publisher.CreateTopicAsync(DataStreamDefinition.GetTopicByName("Topic1"), new SimpleTopicSummary()).ConfigureAwait(false);
-            var sendOperations = (await t1.EnqueueAsync(new MyMessageClass { MessageString = "hello world" }).ConfigureAwait(false)).ToList();
 
-            await @event.WaitAsync().ConfigureAwait(false);
+            var sw = Stopwatch.StartNew();
+            var task1 = Task.Run(async () => {
+                for (var i = 0; i < 100000; i++) {
+                    var value = new MyMessageClass {
+                        Count = i,
+                        MessageString = "hello worldhello worldhello worldhello worldhello worldhello worldhello worldhello worldhello world",
+                    };
+                    await t1.EnqueueAsync(value).ConfigureAwait(false);
+                }
+            });
 
-            lock (messageCounter) {
-                Assert.AreEqual(messageCounter["hello world"], 1);
-            }
+            var task2 = Task.Run(async () => {
+                for (var i = 0; i < 100000; i++) {
+                    var envelope = await clientMessages.DequeueAsync().ConfigureAwait(false);
+                    var message = envelope.Message as MyMessageClass;
+                    if (message.Count != i) throw new Exception();
+                }
+            });
+
+            await task1.ConfigureAwait(false);
+            await task2.ConfigureAwait(false);
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds);
+
+            //var sendOperations = (await t1.EnqueueAsync(new MyMessageClass { MessageString = "hello world" }).ConfigureAwait(false)).ToList();
+
+            //await @event.WaitAsync().ConfigureAwait(false);
+
+            //lock (messageCounter) {
+            //    Assert.AreEqual(messageCounter["hello world"], 1);
+            //}
 
             client1.Dispose();
             publisher.Dispose();
@@ -94,29 +127,36 @@ namespace Apex.DataStreams.Tests {
                 await Task.Yield();
             }
 
-            async Task ReceiveWorker() {
-                while (true) {
-                    var envelope = await clientMessages.DequeueAsync().ConfigureAwait(false);
-                    var message = (envelope.Message as MyMessageClass).MessageString;
-                    lock (messageCounter) {
-                        try { messageCounter[message]++; } catch { messageCounter[message] = 1; }
-                    }
-                    @event.Set();
-                }
-            }
+            //async Task ReceiveWorker() {
+            //    while (true) {
+            //        var envelope = await clientMessages.DequeueAsync().ConfigureAwait(false);
+            //        var message = (envelope.Message as MyMessageClass).MessageString;
+            //        lock (messageCounter) {
+            //            try { messageCounter[message]++; } catch { messageCounter[message] = 1; }
+            //        }
+            //        @event.Set();
+            //    }
+            //}
         }
 
         class MyMessageClass {
+            public int Count;
             public string MessageString;
         }
 
         class MyMessageClassEncoder : CompressorBase<MyMessageClass> {
 
-            public override void Compress(IWriteBytes stream, MyMessageClass value)
-                => stream.WriteCompressedString(value.MessageString);
+            public override void Compress(IWriteBytes stream, MyMessageClass value) {
+                stream.WriteCompressedInt(value.Count);
+                stream.WriteCompressedString(value.MessageString);
+            }
 
-            public override MyMessageClass Decompress(IReadBytes stream)
-                => new MyMessageClass { MessageString = stream.ReadCompressedString() };
+            public override MyMessageClass Decompress(IReadBytes stream) {
+                var value = new MyMessageClass();
+                value.Count = stream.ReadCompressedInt();
+                value.MessageString = stream.ReadCompressedString();
+                return value;
+            }
         }
 
     }
