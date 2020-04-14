@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Apex.DataStreams.Encoding;
 
 namespace Apex.DataStreams.Topics {
 
@@ -12,20 +11,17 @@ namespace Apex.DataStreams.Topics {
     /// In other words, it assumes that the last-sent message contains ALL the information needed to bring a new client
     /// up-to-date with current data for this feed topic.
     /// </summary>
-    public sealed class SimpleTopicSummary : IDataStreamTopicSummary, IDisposable {
+    public sealed class SimpleTopicSummary : ITopicSummary, IDisposable {
 
         object[] _lastMessage = new object[1] { null };
 
-        /// <inheritdoc/>
-        public Task OnMessage(MessageEnvelope envelope) {
-            _lastMessage[0] = envelope.Message;
-            return Task.CompletedTask;
+        public ValueTask OnMessage<TMessage>(TMessage message) {
+            _lastMessage[0] = message;
+            return default;
         }
 
-        /// <inheritdoc/>
-        public Task<object[]> GetTopicSummary()
-            => Task.FromResult(_lastMessage);
-
+        public ValueTask<object[]> GetTopicSummary()
+            => new ValueTask<object[]>(_lastMessage);
 
         public void Dispose() { }
     }

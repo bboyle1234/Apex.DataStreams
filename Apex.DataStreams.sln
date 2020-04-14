@@ -10,7 +10,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".sln", ".sln", "{1151D584-5
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Apex.DataStreams", "Apex.DataStreams\Apex.DataStreams.csproj", "{DCB99F47-30CA-47E8-A3A7-C542266E2B5D}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Apex.DataStreams.Tests", "Apex.DataStreams.Tests\Apex.DataStreams.Tests.csproj", "{9B99AF9E-D034-45D1-BE40-062AAF3322DD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Apex.DataStreams.Benchmarking", "Apex.DataStreams.Benchmarking\Apex.DataStreams.Benchmarking.csproj", "{D707A312-55FC-46CA-91E8-01A0CC7B09B6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -22,10 +22,10 @@ Global
 		{DCB99F47-30CA-47E8-A3A7-C542266E2B5D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DCB99F47-30CA-47E8-A3A7-C542266E2B5D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DCB99F47-30CA-47E8-A3A7-C542266E2B5D}.Release|Any CPU.Build.0 = Release|Any CPU
-		{9B99AF9E-D034-45D1-BE40-062AAF3322DD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{9B99AF9E-D034-45D1-BE40-062AAF3322DD}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{9B99AF9E-D034-45D1-BE40-062AAF3322DD}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{9B99AF9E-D034-45D1-BE40-062AAF3322DD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D707A312-55FC-46CA-91E8-01A0CC7B09B6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D707A312-55FC-46CA-91E8-01A0CC7B09B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D707A312-55FC-46CA-91E8-01A0CC7B09B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D707A312-55FC-46CA-91E8-01A0CC7B09B6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

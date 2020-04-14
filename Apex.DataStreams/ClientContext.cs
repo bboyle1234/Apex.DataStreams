@@ -1,23 +1,18 @@
-﻿using Apex.DataStreams.Definitions;
-using Apex.DataStreams.Encoding;
-using Nito.AsyncEx;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Net;
 using System.Text;
-using System.Threading.Tasks;
+using System.Threading.Channels;
 
 namespace Apex.DataStreams {
 
     public class ClientContext {
 
+        public IServiceProvider Services;
+
         /// <summary>
         /// The definition of the data stream. Helps the client encode and decode messages correctly.
         /// </summary>
-        public DataStreamDefinition DataStreamDefinition;
-
-        public int MaxMessageSendTimeInSeconds;
+        public Schema Schema;
 
         /// <summary>
         /// Format [hostname|ip]:port
@@ -25,8 +20,8 @@ namespace Apex.DataStreams {
         public string PublisherEndPoint;
 
         /// <summary>
-        /// The queue that messages from the publisher will be sent to.
+        /// The queue to place the messgges that the client receives.
         /// </summary>
-        public AsyncProducerConsumerQueue<MessageEnvelope> ReceiveQueue;
+        public ChannelWriter<object> ReceiveQueue;
     }
 }

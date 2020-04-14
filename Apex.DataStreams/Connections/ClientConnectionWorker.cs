@@ -1,53 +1,35 @@
-﻿using Apex.KeyedServices;
-using Apex.ValueCompression;
-using Apex.ValueCompression.Compressors;
+﻿using Apex.ServiceUtilities;
+using Apex.TimeStamps;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Nito.AsyncEx;
 using System;
-using System.Linq;
-using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
-using CT = System.Threading.CancellationToken;
-using CTS = System.Threading.CancellationTokenSource;
-using static Apex.TaskUtilities.Tasks;
-using Apex.DataStreams.Definitions;
-using Apex.DataStreams.Encoding;
-using System.Net;
+using System.Collections.Generic;
 using System.Globalization;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.DependencyInjection;
-using Apex.TimeStamps;
-using System.Collections.Immutable;
-using Apex.ServiceUtilities;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Threading.Tasks;
+using static Apex.TaskUtilities.Tasks;
 
 namespace Apex.DataStreams.Connections {
 
     /// <summary>
-    /// Used the by Client, this class helps to continually reconnect to the server.
+    /// Used the by Client, this class helps to maintain a continuous connection to a single endpoint, reconnecting when necessary.
+    /// If a client is configured to use multiple endpoints, it will run one of these objects for each endpoint.
     /// </summary>
     internal sealed class ClientConnectionWorker : ServiceBase {
 
-        /// <summary>
-        /// Size of receive buffer before blocking occurs.
-        /// </summary>
-        private const int ReceiveBufferSize = 8 * 1024; // bytes
-
-        /// <summary>
-        /// Time in which a connection must either succeed or fail.
-        /// </summary>
-        public const int ConnectTimeout = 3000; // milliseconds
-
         readonly ILogger Log;
-        readonly IEncoder Encoder;
         readonly ClientContext ClientContext;
         readonly RecentEventCounter<DisconnectionEvent> RecentDisconnections;
 
-        Connection _remote = null;
+        Connection _connection = null;
 
         public ClientConnectionWorker(IServiceProvider serviceProvider, ClientContext clientContext) {
             ClientContext = clientContext;
             Log = serviceProvider.GetRequiredService<ILoggerFactory>().CreateLogger($"{nameof(ClientConnectionWorker)}_{ClientContext.PublisherEndPoint}");
-            Encoder = serviceProvider.GetRequiredService<IEncoder>();
             RecentDisconnections = new RecentEventCounter<DisconnectionEvent>(TimeSpan.FromMinutes(1));
         }
 
@@ -65,117 +47,86 @@ namespace Apex.DataStreams.Connections {
         /// </summary>
         async Task ConnectWorker() {
 
-            IPEndPoint endPoint = null;
             Socket socket = null;
 
             /// Initialise this flag "true" so that we can immediately connect on the first go-around.
-            /// Afterwards, this flag is set either by a) Failed connection attempt, or b) Disconnection.
+            /// Afterwards, this flag is set either by a) the failed connection exception handler, or b) the disconnection callback.
             var connectionNeeded = new AsyncAutoResetEvent(true);
+
             while (true) {
                 try {
                     await connectionNeeded.WaitAsync(DisposedToken).ConfigureAwait(false);
-                    /// We go through the whole process of resolving the ip from scratch every time because, in the docker environment, 
-                    /// the target container's ip can change at any time when it's re-instantiated.
-                    await SetIPEndPoint().ConfigureAwait(false);
-                    /// Actually connect the socket. Sets the "socket" variable.
-                    await ConnectSocket().ConfigureAwait(false);
-                    /// Then create and start the DataStreamConnection that will be handling the underlying data transfer protocol
-                    var context = new ConnectionContext {
-                        Definition = ClientContext.DataStreamDefinition,
-                        Encoder = Encoder,
-                        Socket = socket,
-                        ReceiveQueue = ClientContext.ReceiveQueue,
-                        DisconnectedCallback = OnDisconnected,
-                        MaxMessageSendTimeInSeconds = ClientContext.MaxMessageSendTimeInSeconds,
-                    };
-                    _remote = new Connection(context);
-                    _remote.Start();
-                } catch (OperationCanceledException) { // Happens when we are disposed.
-                    /// Shuts down the current, established connection if it exists.
-                    try { _remote?.Dispose(); } catch { }
-                    try { socket?.Dispose(); } catch { } // Disposing the remote also disposes the socket, but it's possible for the socket to exist when the remote doesn't, and in that circumstance, we need to make sure we also dispose the socket.
-                    /// Our work is done --- let's get outta the method!!
-                    return;
-                } catch (Exception x) { // Happens when connection failed.
-                    Log.LogError(x, $"Unable to establish connection to '{ClientContext.PublisherEndPoint}'.");
-                    AddDisconnectionEvent(x);
-                    /// Cleans up partially-created objects.
-                    try { _remote?.Dispose(); } catch { }
-                    try { socket?.Dispose(); } catch { } // Disposing the remote also disposes the socket, but it's possible for the socket to exist when the remote doesn't, and in that circumstance, we need to make sure we also dispose the socket.
-                    /// Wait a second before signalling that we need to attempt another connection, because this one failed.
-                    SetConnectionNeeded(TimeSpan.FromSeconds(1));
-                }
-            }
 
-            /// Figures out the IP End Point from values supplied in the configuration, and throws exceptions with good explanations.
-            async Task SetIPEndPoint() {
-                try {
                     var parts = ClientContext.PublisherEndPoint.Split(':');
-                    var ip = (await Dns.GetHostAddressesAsync(parts[0]).ConfigureAwait(false)).First(x => x.AddressFamily == AddressFamily.InterNetwork);
+                    var host = parts[0];
                     var port = int.Parse(parts[1], NumberStyles.Any, CultureInfo.InvariantCulture);
-                    endPoint = new IPEndPoint(ip, port);
-                } catch (Exception x) {
-                    throw new Exception($"Error parsing IPEndpoint from value '{ClientContext.PublisherEndPoint}'. Expected format is '[host|ip]:port'.", x);
-                }
-            }
-
-            /// Responsible for handling connection logic and throwing exceptions with good explanations.
-            async Task ConnectSocket() {
-                try {
                     socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                    //socket.ReceiveBufferSize = ReceiveBufferSize;
-                    //socket.NoDelay = true;
                     socket.LingerState = new LingerOption(false, 0);
-                    await socket.ConnectAsync(endPoint).ConfigureAwait(false);
+                    await socket.ConnectAsync(host, port).ConfigureAwait(false);
+
+                    _connection = new Connection(ClientContext, socket, OnDisconnected);
+                    _connection.Start();
+
+                } catch (OperationCanceledException) {
+
+                    /// Happens when we are disposed.
+                    Cleanup();
+                    return; /// Careful to make sure we exit the method entirely.
+
                 } catch (Exception x) {
-                    throw new Exception($"Error connecting to '{endPoint}'.", x);
+
+                    /// Happens when we failed to establish a connection.
+                    await OnDisconnected(null, x).ConfigureAwait(false);
+                    /// Now go back to the top of the while loop and wait for the "connectionNeeded" event to be set.
                 }
             }
 
             /// Handles disconnection. 
-            async Task OnDisconnected(Connection r, Exception x) {
-                Log.LogError(x, $"Disconnected from '{ClientContext.PublisherEndPoint}' @ '{endPoint}'.");
-                AddDisconnectionEvent(x);
-                /// Dispose the remote and the socket.
-                /// It was coded to automatically dispose itself and the socket on disconnection, these lines of code are just "being polite", 
-                /// but they are included anyways because well, you never know, maybe the implementation of the DataStreamConnection class could
-                /// change one day.
-                try { _remote?.Dispose(); } catch { } // Socket and remote should never be null here, but I coded it like this anyways.
-                try { socket?.Dispose(); } catch { }
-                /// Wait a second before setting the signal to create a new connection.
-                SetConnectionNeeded(TimeSpan.FromSeconds(1));
-                /// Just keeps the compiler happy.
-                await Task.Yield();
-            }
+            Task OnDisconnected(Connection r, Exception x) {
+                Log.LogError(x, $"Disconnected from '{ClientContext.PublisherEndPoint}'.");
 
-            /// Sets the ConnectionNeeded event after the given wait time if we have not been disposed first.
-            void SetConnectionNeeded(TimeSpan wait) {
-                FireAndForget(async () => {
-                    /// The OperationCanceledException thrown due to disposal is eaten by the FireAndForget method.
-                    await Task.Delay(wait, DisposedToken).ConfigureAwait(false);
-                    /// Allows the ConnectionWorker task to start setting up a new connection.
-                    connectionNeeded.Set();
+                /// Adds a disconnection event to the disconnection event counter. 
+                /// We do this for status reporting, so an administrator can see if the connection is behaving nicely, 
+                /// or getting regularly disconnected.
+                RecentDisconnections.Increment(new DisconnectionEvent {
+                    TimeStamp = TimeStamp.Now,
+                    Exception = x,
+                    RemoteEndPoint = ClientContext.PublisherEndPoint,
                 });
+
+                Cleanup();
+
+                /// Allows the connection worker to initiate a new connection after the given delay.
+                FireAndForget(TimeSpan.FromSeconds(1), connectionNeeded.Set, DisposedToken);
+                return Task.CompletedTask;
+            }
+
+            void Cleanup() {
+
+                /*****************************************************************************
+                 * Since "_remote" owns the socket and disposes the socket, it would normally
+                 * be sufficient in most cases to only call dispose on the "_connection". 
+                 * But if an exception happened above after the socket was created but before
+                 * the "_connection" was created, (such as on a failed connection attempt) we would 
+                 * be left with an undisposed socket.
+                 * Therefore the cleanup code below calls dispose on both the _connection and the socket.
+                *****************************************************************************/
+
+                try { _connection?.Dispose(); } catch { }
+                try { socket?.Dispose(); } catch { }
             }
         }
 
-        void AddDisconnectionEvent(Exception x) {
-            RecentDisconnections.Increment(new DisconnectionEvent {
-                TimeStamp = TimeStamp.Now,
-                Exception = x,
-                RemoteEndPoint = ClientContext.PublisherEndPoint,
-            });
-        }
-
+        /// <summary>
+        /// Gets a user-friendly summary of the connection's performance.
+        /// </summary>
         public async Task<ConnectionWorkerStatus> GetStatusAsync() {
-            var status = new ConnectionWorkerStatus();
-            status.EndPoint = ClientContext.PublisherEndPoint;
-            status.RecentDisconnections = RecentDisconnections.GetRecentEvents().ToList();
-            var current = _remote;
-            if (null != current) {
-                status.CurrentConnection = await current.GetStatusAsync().ConfigureAwait(false);
-            }
-            return status;
+            var current = _connection; // grab a reference to prevent a thread race between checking for null and calling the GetStatusAsync method
+            return new ConnectionWorkerStatus {
+                EndPoint = ClientContext.PublisherEndPoint,
+                RecentDisconnections = RecentDisconnections.GetRecentEvents().ToList(),
+                CurrentConnection = current is null ? null : await current.GetStatusAsync().ConfigureAwait(false)
+            };
         }
     }
 }

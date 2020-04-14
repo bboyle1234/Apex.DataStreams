@@ -1,111 +1,62 @@
 ﻿using Apex.DataStreams.Connections;
-using Apex.DataStreams.Definitions;
-using Apex.DataStreams.Encoding;
-using Apex.DataStreams.Operations;
 using Apex.DataStreams.Topics;
-using Apex.LoggingUtils;
 using Apex.ServiceUtilities;
-using Apex.TimeStamps;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using Nito.AsyncEx;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using static Apex.TaskUtilities.Tasks;
-using CTS = System.Threading.CancellationTokenSource;
 
 namespace Apex.DataStreams {
 
-    internal sealed class Publisher : ServiceBase, IDataStreamPublisher {
+    public sealed class Publisher : ServiceBase/*, IPublisher*/ {
 
         /// <summary>
         /// The maximum length of the pending connections queue.
         /// </summary>
         private const int MaxPendingConnectionsBacklog = 10;
 
-        /// <inheritdoc />
-        public PublisherConfiguration Configuration { get; }
-
         readonly ILogger Log;
-        readonly AsyncLock Lock;
+        readonly IServiceProvider Services;
         readonly Socket Listener;
-        readonly IEncoder Encoder;
-        readonly List<Topic> Topics;
-        readonly IServiceProvider ServiceProvider;
-        readonly List<Connection> Clients;
-        readonly Func<IDataStreamPublisher, Exception, Task> ErrorCallback;
-        readonly RecentEventCounter<DisconnectionEvent> RecentDisconnections;
+        readonly AsyncLock Mutex = new AsyncLock();
+        readonly PublisherConfiguration Configuration;
+        readonly List<Topic> Topics = new List<Topic>();
+        readonly List<Connection> Connections = new List<Connection>();
+        readonly Func<Publisher, Exception, Task> ErrorCallback;
 
-        long _errored = 0;
+        int _errored = 0;
 
-        public Publisher(IServiceProvider serviceProvider, PublisherConfiguration configuration, Func<IDataStreamPublisher, Exception, Task> errorCallback) {
-
-            if (null == configuration) throw new ArgumentNullException(nameof(configuration));
-            if (null == errorCallback) throw new ArgumentNullException(nameof(errorCallback));
-
-            ServiceProvider = serviceProvider;
+        public Publisher(IServiceProvider services, PublisherConfiguration configuration, Func<Publisher, Exception, Task> errorCallback) {
+            Services = services;
             Configuration = configuration;
             ErrorCallback = errorCallback;
-
-            Encoder = ServiceProvider.GetRequiredService<IEncoder>();
-            Log = ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger($"{GetType().Name}_{Configuration.DataStreamDefinition.Name}");
-            RecentDisconnections = new RecentEventCounter<DisconnectionEvent>(TimeSpan.FromMinutes(10));
-
-            Topics = new List<Topic>();
-            Clients = new List<Connection>();
-            Lock = new AsyncLock();
+            Log = services.GetRequiredService<ILoggerFactory>().CreateLogger<Publisher>();
             Listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp) {
                 NoDelay = true,
                 LingerState = new LingerOption(true, 1),
             };
         }
 
-        /// <summary>
-        /// Makes the publisher start listening for incoming connections.
-        /// Does not throw exceptions if it fails - instead, you must have a handler for the errorCallback.
-        /// </summary>
         protected override void CustomStart() {
-            using (Log.BeginDataScopeUsingMethodName()) {
-                Log.SetScopeData("configuration", Configuration);
-                try {
-                    Listener.Bind(new IPEndPoint(IPAddress.Any, Configuration.ListenPort));
-                    Listener.Listen(MaxPendingConnectionsBacklog);
-                    Log.LogInformation($"Started.");
-                } catch (Exception x) {
-                    /// We don't rethrow the exception, because OnErrored will call the ErrorCallback method, notifying the 
-                    /// calling object that way. Currently, OnErrored is setup to kickoff a new task that triggers the ErrorCallback. 
-                    /// If OnErrored is ever modified to wait for the ErrorCallback to complete before it completes, we would be in danger
-                    /// of causing a threadlock situation with the calling code, which might be running within a lock right now. So ... 
-                    /// if the OnErrored method is every modified in this way, we'll need to kickoff a task right here for calling OnErrored.
-                    OnErrored(x);
-                    return;
-                }
+            try {
+                Log.LogInformation($"Starting. Configuration: {JsonConvert.SerializeObject(Configuration)}");
+                Listener.Bind(new IPEndPoint(IPAddress.Any, Configuration.ListenPort));
+                Listener.Listen(MaxPendingConnectionsBacklog);
+                Log.LogInformation($"Listener socket is started.");
+                FireAndForget(AcceptConnectionWorker);
+            } catch (Exception x) {
+                Log.LogCritical(x, "Exception thrown while starting.");
+                OnErrored(x);
             }
-            /// Get outside of the Log's data scope before firing off this long-running task,
-            /// or the data scope would be included in every log entry by the AcceptConnectionWorker.
-            FireAndForget(AcceptConnectionWorker);
-        }
-
-        protected override void CustomDispose(bool disposing) {
-            using (Lock.Lock()) {
-                OnErrored(new Exception("Disposing."));
-                try { Listener?.Close(); } catch { }
-                try { Listener?.Dispose(); } catch { }
-                Clients.ForEach(r => r.Dispose());
-                Topics.ForEach(t => t.ShutdownAsync().GetAwaiter().GetResult());
-                Clients.Clear();
-                Topics.Clear();
-            }
-            Log.LogInformation("Disposed.");
         }
 
         /// <summary>
@@ -118,92 +69,20 @@ namespace Apex.DataStreams {
                     /// but it does throw an exception when the socket is disposed.
                     var socket = await Listener.AcceptAsync().ConfigureAwait(false);
                     Log.LogInformation($"Accepted connection from '{socket.RemoteEndPoint}'.");
-                    /// Initialise and store the object that will handle communication with the new client.
-                    var client = new Connection(new ConnectionContext {
-                        Definition = Configuration.DataStreamDefinition,
-                        Encoder = Encoder,
-                        Socket = socket,
-                        ReceiveQueue = null, // Publishers (at this time) don't receive any messages from the clients
-                        DisconnectedCallback = OnClientDisconnected,
-                        MaxMessageSendTimeInSeconds = Configuration.MaxMessageSendTimeInSeconds,
-                    });
-                    client.Start();
-                    using (await Lock.LockAsync().ConfigureAwait(false)) {
-                        Clients.Add(client);
-                        /// Adding the client to a topic can take some time, because the topic has to 
-                        /// enqueue its current topic summary into the new client, so we let this run in parallel.
-                        var clientArray = new[] { client };
-                        var tasks = Topics.Select(async t => await t.AddClientsAsync(clientArray).ConfigureAwait(false));
-                        await Task.WhenAll(tasks).ConfigureAwait(false);
-                    }
+                    var connection = new Connection(new ClientContext {
+                        Services = Services,
+                        Schema = Configuration.Schema,
+                        PublisherEndPoint = null, // Not for use at the publisher end.
+                        ReceiveQueue = null, // Publishers (at this time) don't receive messages from the clients
+                    }, socket, null);
+                    connection.Start();
+                    await AddConnection(connection).ConfigureAwait(false);
                 }
             } catch (Exception x) {
                 /// To my knowledge, the only way code can get here is after we have been disposed. 
                 /// However, it's possible that my knowledge is limited and the AcceptAsync method could throw 
                 /// an exception for a different reason. If so, we need to ensure that the exception is logged.
                 OnErrored(x);
-            }
-        }
-
-        /// <summary>
-        /// This is the callback that client connections use to notify us that the connection has been dropped.
-        /// </summary>
-        Task OnClientDisconnected(Connection client, Exception x) {
-            /// There's no need to make the client wait around for all this to happen.
-            /// And we make sure no thread-lock issues happen when Dispose is using the Lock as well.
-            FireAndForget(async () => {
-                using (await Lock.LockAsync().ConfigureAwait(false)) {
-
-                    /// A side-effect of the Dispose method is that all clients will call OnClientDisconnected.
-                    /// We check for disposal here inside the lock to make sure we get the logic right. 
-                    if (IsDisposeStarted) return;
-
-                    Log.LogInformation(x, $"Remote '{client.RemoteEndPoint}' disconnected.");
-
-                    RecentDisconnections.Increment(new DisconnectionEvent {
-                        TimeStamp = TimeStamp.Now,
-                        RemoteEndPoint = client.RemoteEndPoint.ToString(),
-                        Exception = x,
-                    });
-
-                    var tasks = Topics.Select(async (topic) => await topic.RemoveClientAsync(client).ConfigureAwait(false));
-                    await Task.WhenAll(tasks).ConfigureAwait(false);
-
-                    Clients.Remove(client);
-
-                    /// Client DataStreamConnection has been coded to auto-dispose itself,
-                    /// but we're doing this here to be "polite" and also to do the right thing in case the DataStreamConnection implementation ever changes.
-                    client.Dispose();
-                }
-            });
-            return Task.CompletedTask;
-        }
-
-        /// <inheritdoc />
-        public async Task<IDataStreamTopic> CreateTopicAsync(DataStreamTopicDefinition definition, IDataStreamTopicSummary topicManager) {
-            using (await Lock.LockAsync().ConfigureAwait(false)) {
-                if (IsDisposeStarted) throw new ObjectDisposedException(nameof(Publisher));
-                var topic = new Topic(this, definition, Encoder, topicManager);
-                await topic.AddClientsAsync(Clients).ConfigureAwait(false);
-                Topics.Add(topic);
-                return topic;
-            }
-        }
-
-        /// <inheritdoc />
-        public async Task RemoveTopicAsync(IDataStreamTopic topic) {
-            var theTopic = (Topic)topic;
-            using (await Lock.LockAsync().ConfigureAwait(false)) {
-                Topics.Remove(theTopic);
-            }
-            await theTopic.ShutdownAsync().ConfigureAwait(false);
-        }
-
-        public async Task ClearTopicsAsync() {
-            using (await Lock.LockAsync().ConfigureAwait(false)) {
-                var tasks = Topics.Select(t => t.ShutdownAsync());
-                await Task.WhenAll(tasks).ConfigureAwait(false);
-                Topics.Clear();
             }
         }
 
@@ -226,156 +105,117 @@ namespace Apex.DataStreams {
             FireAndForget(async () => {
                 /// Swallow, (but log) any errors thrown by the ErrorCallback.
                 try {
-                    await ErrorCallback(this, x).ConfigureAwait(false);
+                    if (ErrorCallback is object) {
+                        await ErrorCallback(this, x).ConfigureAwait(false);
+                    }
                 } catch (Exception y) {
                     Log.LogError(y, $"Exception thrown by the {nameof(ErrorCallback)} handler.");
                 }
             });
         }
 
-        public async Task<PublisherStatus> GetStatusAsync() {
-            var status = new PublisherStatus();
-            var connectionStatusTasks = Clients.Select(c => c.GetStatusAsync());
-            await Task.WhenAll(connectionStatusTasks).ConfigureAwait(false);
-#pragma warning disable AsyncFixer02 // Long running or blocking operations under an async method
-            status.Connections = connectionStatusTasks.Select(t => t.Result).ToList();
-#pragma warning restore AsyncFixer02 // Long running or blocking operations under an async method
-            status.RecentDisconnections = RecentDisconnections.GetRecentEvents().ToList();
-            return status;
+        async ValueTask AddConnection(Connection connection) {
+            using (await Mutex.LockAsync().ConfigureAwait(false)) {
+                foreach (var topic in Topics) {
+                    await topic.AddConnection(connection).ConfigureAwait(false);
+                }
+            }
+            connection.DisposedTask.ContinueWith(async _ => {
+                using (await Mutex.LockAsync().ConfigureAwait(false)) {
+                    foreach (var topic in Topics) {
+                        await topic.RemoveConnection(connection).ConfigureAwait(false);
+                    }
+                }
+            }).Ignore();
         }
 
-        #region class Topic
+        public async ValueTask<ITopic> CreateTopic(ITopicSummary summary) {
+            using var _ = await Mutex.LockAsync().ConfigureAwait(false);
+            var topic = new Topic(summary, Connections);
+            Topics.Add(topic);
+            topic.Start();
+            return topic;
+        }
 
-        private sealed class Topic : IDataStreamTopic {
+        public async ValueTask RemoveTopic(ITopic topic) {
+            using var _ = await Mutex.LockAsync().ConfigureAwait(false);
+            var theTopic = (Topic)topic;
+            Topics.Remove(theTopic);
+            theTopic.Dispose();
+        }
 
-            readonly AsyncLock Lock;
-            readonly IEncoder Encoder;
-            readonly Publisher Publisher;
-            readonly List<Connection> Clients;
-            readonly DataStreamTopicDefinition Definition;
-            readonly IDataStreamTopicSummary TopicSummaryManager;
+        public async ValueTask RemoveAllTopics() {
+            using var _ = await Mutex.LockAsync().ConfigureAwait(false);
+            foreach (var topic in Topics)
+                topic.Dispose();
+            Topics.Clear();
+        }
 
-            bool _shutdown = false;
 
-            public Topic(Publisher publisher, DataStreamTopicDefinition definition, IEncoder encoder, IDataStreamTopicSummary topicSummaryManager) {
-                Publisher = publisher;
-                Definition = definition;
-                Encoder = encoder;
-                TopicSummaryManager = topicSummaryManager;
-                Lock = new AsyncLock();
-                Clients = new List<Connection>();
+        #region sealed class Topic
+
+        sealed class Topic : ServiceBase, ITopic {
+
+            readonly ITopicSummary Summary;
+            readonly List<Connection> Connections = new List<Connection>();
+            readonly Channel<object> MessageQueue = Channel.CreateUnbounded<object>();
+
+            public Topic(ITopicSummary summary, IEnumerable<Connection> connections) {
+                Summary = summary;
+                Connections = connections.ToList();
             }
 
-            #region **** Methods called by the publisher ****
-            #endregion
+            protected override void CustomStart() {
+                Task.Run(Work);
+            }
 
+            public ValueTask AddConnection(Connection connection)
+                => MessageQueue.Writer.WriteAsync(connection);
 
-            /// <summary>
-            /// Called by the publisher when new clients have connected. The new clients need to be sent a topic summary message and be added
-            /// to our private client list. Also called when the topic is newly created and clients already exist. 
-            /// </summary>
-            internal async Task AddClientsAsync(IEnumerable<Connection> newClients) {
-                using (await Lock.LockAsync().ConfigureAwait(false)) {
+            public ValueTask RemoveConnection(Connection connection)
+                => MessageQueue.Writer.WriteAsync(new RemoveConnectionJob(connection));
 
-                    /// New clients are added to the main list first, because they need to be present in the main list
-                    /// for removal by the <see cref="ActuallyEnqueueAsync(IEnumerable{Connection}, MessageEnvelope)"/> method
-                    /// if they fail to enqueue the topicSummary message.
-                    Clients.AddRange(newClients);
+            public ValueTask Enqueue(object message)
+                => MessageQueue.Writer.WriteAsync(message);
 
-                    /// Then we automatically send the topic summary message to all new clients.
-                    var topicSummaryMessages = await TopicSummaryManager.GetTopicSummary().ConfigureAwait(false);
-                    if (null != topicSummaryMessages) {
-                        foreach (var message in topicSummaryMessages) {
-                            if (null != message) {
-                                var envelope = Encoder.Encode(Definition, message);
-                                /// Enqueues the topic summary to all the new clients, and removes clients from the main 
-                                /// client list if the topic summary fails to be enqueued.
-                                await ActuallyEnqueueAsync(newClients, envelope).ConfigureAwait(false);
+            async Task Work() {
+                try {
+                    while (true) {
+                        DisposedToken.ThrowIfCancellationRequested();
+                        var message = await MessageQueue.Reader.ReadAsync(DisposedToken).ConfigureAwait(false);
+                        switch (message) {
+
+                            case Connection newConnection: {
+                                Connections.Add(newConnection);
+                                var summaryMessages = await Summary.GetTopicSummary().ConfigureAwait(false);
+                                if (summaryMessages is object && summaryMessages.Length > 0) {
+                                    foreach (var summaryMessage in summaryMessages) {
+                                        if (summaryMessage is object) {
+                                            await newConnection.Enqueue(summaryMessage).ConfigureAwait(false);
+                                        }
+                                    }
+                                }
+                                break;
+                            }
+
+                            case RemoveConnectionJob removeConnection:
+                                Connections.Remove(removeConnection.Connection);
+                                break;
+
+                            default: {
+                                foreach (var connection in Connections) {
+                                    await connection.Enqueue(message).ConfigureAwait(false); ;
+                                }
+                                break;
                             }
                         }
                     }
-                }
+                } catch (OperationCanceledException) { }
             }
 
-            /// <summary>
-            /// Removes the client from the client list if it exists there.
-            /// Called by the publisher when a client DataStreamConnection has been disconnected.
-            /// </summary>
-            internal async Task RemoveClientAsync(Connection client) {
-                using (await Lock.LockAsync().ConfigureAwait(false)) {
-                    Clients.Remove(client);
-                }
-            }
-
-            /// <summary>
-            /// Called by the publisher in either of the following 2 circumstances:
-            /// a) The app using the publisher has called the publisher's RemoveTopicAsync method for this topic, or,
-            /// b) The publisher is being disposed and needs to shutdown all the topics.
-            /// </summary>
-            /// <returns></returns>
-            internal async Task ShutdownAsync() {
-                using (await Lock.LockAsync().ConfigureAwait(false)) {
-                    _shutdown = true;
-                    TopicSummaryManager.Dispose();
-                }
-            }
-
-
-            #region **** Methods called by the user ****
-            #endregion
-
-
-            /// <summary>
-            /// Enqueues the message for sending to all clients.
-            /// </summary>
-            /// <returns>IOperations representing the sending completion to each client.</returns>
-            /// <exception cref="ObjectDisposedException">Thrown if the topic has been shutdown.</exception>
-            public async Task<IEnumerable<IOperation>> EnqueueAsync(object message) {
-                var envelope = Encoder.Encode(Definition, message);
-                using (await Lock.LockAsync().ConfigureAwait(false)) {
-                    if (_shutdown) throw new ObjectDisposedException(nameof(IDataStreamTopic));
-                    /// Inform the topic summary manager of the message, so that it can update the topic summary
-                    /// message that it creates for newly-connecting clients.
-                    await TopicSummaryManager.OnMessage(envelope).ConfigureAwait(false);
-                    /// And actually enqueue the message to the clients that are already connected.
-                    return await ActuallyEnqueueAsync(Clients, envelope).ConfigureAwait(false);
-                }
-            }
-
-
-            #region **** Common helper methods ****
-            #endregion
-
-
-            /// <summary>
-            /// Call this method ONLY from within the Lock!!
-            /// Enqueues the given message envelope to the given clients, removing any clients that fail to enqueue it.
-            /// Returns IOperations representing the completed sending of the message - just in case the sender wants to track
-            /// actual arrival of the messages.
-            /// </summary>
-            async Task<IEnumerable<IOperation>> ActuallyEnqueueAsync(IEnumerable<Connection> clients, MessageEnvelope envelope) {
-                var operations = new ConcurrentBag<IOperation>();
-                var failedClients = new ConcurrentBag<Connection>();
-                var tasks = clients.Select(async (c) => {
-                    try {
-                        operations.Add(await c.EnqueueAsync(envelope).ConfigureAwait(false));
-                    } catch (Exception x) {
-                        /// Removing failed clients immediately could result in the "collection was modified" exception,
-                        /// so we save a list of the failed clients instead, and remove them after the enumeration has completed.
-                        failedClients.Add(c);
-                        operations.Add(TaskOperation.FromException(new Exception($"Connection to '{c.RemoteEndPoint}' was already closed.", x)));
-                    }
-                });
-                await Task.WhenAll(tasks).ConfigureAwait(false);
-
-                /// Remove clients from the main client list if they failed to enqueue the topic summary message.
-                /// Message enqueing failures happen when the client DataStreamConnection has been disposed. We don't 
-                /// have to remove them from the Publisher itself - the DataStreamConnection will have already reported itself 
-                /// failed to the Publisher when it disposed itself.
-                foreach (var failedClient in failedClients)
-                    Clients.Remove(failedClient);
-
-                return operations;
+            readonly struct RemoveConnectionJob {
+                public readonly Connection Connection;
+                public RemoveConnectionJob(Connection connection) => Connection = connection;
             }
         }
 

@@ -1,26 +1,22 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
-    <LangVersion>7.3</LangVersion>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>1701;1702;1591;1587;</NoWarn>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Apex.KeyedServices" Version="0.1.2" />
     <PackageReference Include="Apex.LoggingUtils" Version="0.1.15" />
+    <PackageReference Include="Apex.PipeEncoding" Version="1.0.4" />
     <PackageReference Include="Apex.ServiceUtilities" Version="0.1.17" />
-    <PackageReference Include="Apex.TaskUtilities" Version="1.1.6" />
-    <PackageReference Include="Apex.TimeStamps" Version="4.0.20" />
-    <PackageReference Include="Apex.ValueCompression" Version="1.0.14" />
-    <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="2.1.0" />
-    <PackageReference Include="Nerdbank.GitVersioning" Version="2.3.167">
+    <PackageReference Include="Apex.TaskUtilities" Version="1.1.8" />
+    <PackageReference Include="Apex.TimeStamps" Version="4.0.43" />
+    <PackageReference Include="Nerdbank.GitVersioning" Version="3.1.74">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Nito.AsyncEx" Version="5.0.0" />
-    <PackageReference Include="System.Net.Sockets" Version="4.3.0" />
+    <PackageReference Include="Nerdbank.Streams" Version="2.5.50-alpha" />
+    <PackageReference Include="System.Threading.Channels" Version="4.7.0" />
   </ItemGroup>
 
 </Project>
