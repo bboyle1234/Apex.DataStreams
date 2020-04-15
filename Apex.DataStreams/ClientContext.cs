@@ -7,8 +7,6 @@ namespace Apex.DataStreams {
 
     public class ClientContext {
 
-        public IServiceProvider Services;
-
         /// <summary>
         /// The definition of the data stream. Helps the client encode and decode messages correctly.
         /// </summary>

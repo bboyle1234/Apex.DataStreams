@@ -42,20 +42,22 @@ namespace Apex.DataStreams.Connections {
         readonly IPipeDecoderFactory PipeDecoderFactory;
         readonly Socket Socket;
         readonly Func<Connection, Exception, Task> DisconnectedCallback;
+        readonly IServiceProvider Services;
 
         long _disconnected = 0;
         volatile bool _messageSent = false;
         volatile bool _messageReceived = false;
 
-        public Connection(ClientContext context, Socket socket, Func<Connection, Exception, Task> disconnectedCallback) {
+        public Connection(IServiceProvider services, ClientContext context, Socket socket, Func<Connection, Exception, Task> disconnectedCallback) {
+            Services = services;
             Context = context;
             Socket = socket;
             DisconnectedCallback = disconnectedCallback;
             SendQueue = Channel.CreateUnbounded<object>();
             Status = new StatusManager(Socket.RemoteEndPoint);
 
-            PipeEncoderFactory = Context.Services.GetRequiredService<IPipeEncoderFactory>();
-            PipeDecoderFactory = Context.Services.GetRequiredService<IPipeDecoderFactory>();
+            PipeEncoderFactory = Services.GetRequiredService<IPipeEncoderFactory>();
+            PipeDecoderFactory = Services.GetRequiredService<IPipeDecoderFactory>();
 
             var networkStream = new NetworkStream(Socket, ownsSocket: false);
             Pipe = networkStream.UsePipe(cancellationToken: DisposedToken);

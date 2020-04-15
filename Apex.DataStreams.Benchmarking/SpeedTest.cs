@@ -62,7 +62,6 @@ namespace Apex.DataStreams.Benchmarking {
                 new ClientContext {
                      PublisherEndPoint="localhost:81",
                      Schema = schema,
-                     Services = Services,
                      ReceiveQueue = ReceiveQueue.Writer,
                 }
             });

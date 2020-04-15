@@ -22,12 +22,14 @@ namespace Apex.DataStreams.Connections {
     internal sealed class ClientConnectionWorker : ServiceBase {
 
         readonly ILogger Log;
+        readonly IServiceProvider Services;
         readonly ClientContext ClientContext;
         readonly RecentEventCounter<DisconnectionEvent> RecentDisconnections;
 
         Connection _connection = null;
 
         public ClientConnectionWorker(IServiceProvider serviceProvider, ClientContext clientContext) {
+            Services = serviceProvider;
             ClientContext = clientContext;
             Log = serviceProvider.GetRequiredService<ILoggerFactory>().CreateLogger($"{nameof(ClientConnectionWorker)}_{ClientContext.PublisherEndPoint}");
             RecentDisconnections = new RecentEventCounter<DisconnectionEvent>(TimeSpan.FromMinutes(1));
@@ -64,7 +66,7 @@ namespace Apex.DataStreams.Connections {
                     socket.LingerState = new LingerOption(false, 0);
                     await socket.ConnectAsync(host, port).ConfigureAwait(false);
 
-                    _connection = new Connection(ClientContext, socket, OnDisconnected);
+                    _connection = new Connection(Services, ClientContext, socket, OnDisconnected);
                     _connection.Start();
 
                 } catch (OperationCanceledException) {

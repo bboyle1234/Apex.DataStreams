@@ -79,8 +79,7 @@ namespace Apex.DataStreams {
                     /// but it does throw an exception when the socket is disposed.
                     var socket = await Listener.AcceptAsync().ConfigureAwait(false);
                     Log.LogInformation($"Accepted connection from '{socket.RemoteEndPoint}'.");
-                    var connection = new Connection(new ClientContext {
-                        Services = Services,
+                    var connection = new Connection(Services, new ClientContext {
                         Schema = Configuration.Schema,
                         PublisherEndPoint = null, // Not for use at the publisher end.
                         ReceiveQueue = null, // Publishers (at this time) don't receive messages from the clients
