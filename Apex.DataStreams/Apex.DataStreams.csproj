@@ -7,7 +7,7 @@
 
   <ItemGroup>
     <PackageReference Include="Apex.LoggingUtils" Version="0.1.15" />
-    <PackageReference Include="Apex.PipeEncoding" Version="1.0.4" />
+    <PackageReference Include="Apex.PipeEncoding" Version="1.0.6" />
     <PackageReference Include="Apex.ServiceUtilities" Version="0.1.17" />
     <PackageReference Include="Apex.TaskUtilities" Version="1.1.8" />
     <PackageReference Include="Apex.TimeStamps" Version="4.0.43" />
