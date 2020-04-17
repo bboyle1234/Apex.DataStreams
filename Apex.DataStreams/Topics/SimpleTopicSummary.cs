@@ -15,7 +15,7 @@ namespace Apex.DataStreams.Topics {
 
         object[] _lastMessage = new object[1] { null };
 
-        public ValueTask OnMessage<TMessage>(TMessage message) {
+        public ValueTask OnMessage(object message) {
             _lastMessage[0] = message;
             return default;
         }

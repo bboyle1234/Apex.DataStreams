@@ -223,6 +223,7 @@ namespace Apex.DataStreams {
                                 break;
 
                             default: {
+                                await Summary.OnMessage(message).ConfigureAwait(false);
                                 foreach (var connection in Connections) {
                                     await connection.Enqueue(message).ConfigureAwait(false); ;
                                 }

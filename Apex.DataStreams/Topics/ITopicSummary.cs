@@ -17,7 +17,7 @@ namespace Apex.DataStreams.Topics {
         /// The caller topic guarantees not to interleave concurrent calls to any method in this class.
         /// Use this method to implement a state-tracking system that can provide the topic's current state to any new client when it connects.
         /// </summary>
-        ValueTask OnMessage<TMessage>(TMessage message);
+        ValueTask OnMessage(object message);
 
         /// <summary>
         /// Called when a new client has connected to the topic, and the topic needs to send a summary message that brings the new client "up to date".

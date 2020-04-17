@@ -12,7 +12,7 @@ namespace Apex.DataStreams.Topics {
     /// </summary>
     public sealed class NullTopicSummary : ITopicSummary, IDisposable {
 
-        public ValueTask OnMessage<TMessage>(TMessage message) => default;
+        public ValueTask OnMessage(object message) => default;
         public ValueTask<object[]> GetTopicSummary() => default;
 
         public void Dispose() { }
